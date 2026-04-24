@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 const SCHOOLS = [
+  { name: "Gilde Opleidingen", slug: "gilde-opleidingen" },
   { name: "Summa", slug: "summa" },
   { name: "Curio", slug: "curio" },
   { name: "Yonder", slug: "yonder" },
