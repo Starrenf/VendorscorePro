@@ -1,0 +1,21 @@
+<svg width="280" height="72" viewBox="0 0 280 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Governix</title>
+  <desc id="desc">Governix logo</desc>
+  <defs>
+    <linearGradient id="g1" x1="8" y1="8" x2="60" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="0.52" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="18" y1="16" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B2343"/>
+      <stop offset="1" stop-color="#123C69"/>
+    </linearGradient>
+  </defs>
+  <path d="M36 4 64 20v32L36 68 8 52V20L36 4Z" fill="url(#g1)"/>
+  <path d="M36 12 56 24v24L36 60 16 48V24L36 12Z" fill="white" fill-opacity="0.95"/>
+  <path d="M36 18 50 26v8H36l-7 4 7 4h14v7L36 57 20 48V25l16-7Z" fill="url(#g2)"/>
+  <path d="M46 34 58 34 58 45 47 51 47 43 40 43 46 34Z" fill="#22C55E"/>
+  <text x="82" y="38" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial" font-size="30" font-weight="800" fill="#0B2343" letter-spacing="-1.2">Governix</text>
+  <text x="84" y="56" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial" font-size="10" font-weight="700" fill="#14B8A6" letter-spacing="1.8">GOVERNANCE • CONTRACTS • ASSETS • AI</text>
+</svg>
