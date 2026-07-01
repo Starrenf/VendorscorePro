@@ -5,12 +5,6 @@ import { supabase } from "../lib/supabase";
 import { useApp } from "../state/AppState";
 import { useToast } from "../components/ToastProvider";
 
-const REPOINT_TABLES = [
-  "applications",
-  "supplier_contracts",
-  "governance_checklist_items",
-];
-
 function normalizeCandidateName(value = "") {
   return String(value)
     .toLowerCase()
@@ -23,7 +17,7 @@ function normalizeCandidateName(value = "") {
 }
 
 function displaySupplierName(supplier) {
-  return supplier?.display_name || supplier?.name || "Naam onbekend";
+  return supplier?.display_name || supplier?.visible_name || supplier?.name || "Naam onbekend";
 }
 
 export default function SupplierMasterData() {
@@ -63,9 +57,9 @@ export default function SupplierMasterData() {
 
     const { data, error } = await client
       .from("active_suppliers_view")
-      .select("id,organization_id,name,display_name,legal_name,normalized_name,is_active,created_at,updated_at,domain,category,supplier_type,status")
+      .select("id,organization_id,name,display_name,visible_name,legal_name,normalized_name,is_active,created_at,updated_at,domain,category,supplier_type,status")
       .eq("organization_id", orgId)
-      .order("name", { ascending: true });
+      .order("visible_name", { ascending: true });
 
     if (error) {
       setErr(error.message);
@@ -134,7 +128,7 @@ export default function SupplierMasterData() {
     const search = q.trim().toLowerCase();
     if (!search) return suppliers;
     return suppliers.filter((supplier) =>
-      [supplier.name, supplier.display_name, supplier.legal_name, supplier.domain, supplier.supplier_type]
+      [supplier.name, supplier.display_name, supplier.visible_name, supplier.legal_name, supplier.domain, supplier.supplier_type]
         .join(" ")
         .toLowerCase()
         .includes(search),
@@ -143,7 +137,7 @@ export default function SupplierMasterData() {
 
   function chooseSupplier(supplier) {
     setSelectedId(supplier.id);
-    setDisplayName(supplier.display_name || supplier.name || "");
+    setDisplayName(supplier.display_name || supplier.visible_name || supplier.name || "");
     setLegalName(supplier.legal_name || "");
     setAliasText("");
   }
@@ -207,75 +201,22 @@ export default function SupplierMasterData() {
     setSaving(true);
     setErr("");
 
-    for (const table of REPOINT_TABLES) {
-      const { error } = await client
-        .from(table)
-        .update({ supplier_id: selected.id })
-        .eq("supplier_id", duplicate.id)
-        .eq("organization_id", orgId);
-      if (error) {
-        setSaving(false);
-        setErr(`${table}: ${error.message}`);
-        toast.error("Samenvoegen afgebroken.");
-        return;
-      }
-    }
-
-    const aliasRows = [
-      { organization_id: orgId, supplier_id: selected.id, alias: duplicate.name },
-      duplicate.legal_name ? { organization_id: orgId, supplier_id: selected.id, alias: duplicate.legal_name } : null,
-      duplicate.display_name ? { organization_id: orgId, supplier_id: selected.id, alias: duplicate.display_name } : null,
-      ...(aliasesBySupplier[duplicate.id] || []).map((alias) => ({
-        organization_id: orgId,
-        supplier_id: selected.id,
-        alias: alias.alias,
-      })),
-    ].filter(Boolean);
-
-    if (aliasRows.length) {
-      const { error } = await client
-        .from("supplier_aliases")
-        .upsert(aliasRows, { onConflict: "organization_id,normalized_alias", ignoreDuplicates: true });
-      if (error) {
-        setSaving(false);
-        setErr(error.message);
-        toast.error("Aliassen overzetten mislukt.");
-        return;
-      }
-    }
-
-    await client.from("supplier_merge_map").upsert(
-      [{
-        organization_id: orgId,
-        duplicate_supplier_id: duplicate.id,
-        master_supplier_id: selected.id,
-        reason: "Samengevoegd via leveranciers masterdata beheer",
-        approved: true,
-      }],
-      { onConflict: "duplicate_supplier_id" },
-    );
-
-    const { error: mergeError } = await client
-      .from("suppliers")
-      .update({
-        is_active: false,
-        is_merged: true,
-        merged_into_supplier_id: selected.id,
-        merged_at: new Date().toISOString(),
-        merge_note: "Samengevoegd via leveranciers masterdata beheer",
-      })
-      .eq("id", duplicate.id)
-      .eq("organization_id", orgId);
+    const { data, error } = await client.rpc("merge_suppliers", {
+      p_organization_id: orgId,
+      p_duplicate_supplier_id: duplicate.id,
+      p_master_supplier_id: selected.id,
+      p_reason: "Samengevoegd via leveranciers masterdata beheer",
+    });
 
     setSaving(false);
-    if (mergeError) {
-      setErr(mergeError.message);
-      toast.error("Leverancier markeren als samengevoegd mislukt.");
+    if (error) {
+      setErr(error.message);
+      toast.error("Samenvoegen mislukt.");
       return;
     }
 
     setDuplicateId("");
-    toast.success("Leverancier veilig samengevoegd.");
+    toast.success(`Leverancier veilig samengevoegd${data?.updated_references ? `; ${data.updated_references} verwijzingen bijgewerkt` : ""}.`);
     await load();
   }
 
@@ -381,7 +322,7 @@ export default function SupplierMasterData() {
                   </select>
                   {duplicate ? (
                     <Notice title="Preview samenvoeging">
-                      {duplicate.name} wordt inactief gemaakt en verwijst daarna naar {displaySupplierName(selected)}. Applicaties, contracten en governance-items worden overgezet naar de master.
+                      {duplicate.name} wordt inactief gemaakt en verwijst daarna naar {displaySupplierName(selected)}. De databasefunctie zet alle bekende supplier_id-verwijzingen om naar de master.
                     </Notice>
                   ) : null}
                   <button className="btn btn-primary" disabled={saving || !duplicateId} type="button" onClick={mergeDuplicate}>Veilig samenvoegen</button>
