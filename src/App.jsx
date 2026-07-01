@@ -12,6 +12,7 @@ import Onboarding from "./pages/Onboarding";
 import OrgHub from "./pages/OrgHub";
 import JoinOrg from "./pages/JoinOrg";
 import Suppliers from "./pages/Suppliers";
+import SupplierMasterData from "./pages/SupplierMasterData";
 import SupplierDetail from "./pages/SupplierDetail";
 import NewEvaluation from "./pages/NewEvaluation";
 import EvaluationDetail from "./pages/EvaluationDetail";
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/join/:slug" element={<JoinOrg />} />
 
           <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/suppliers/masterdata" element={<SupplierMasterData />} />
           <Route path="/assets" element={<AssetFoundation />} />
           <Route path="/suppliers/:id" element={<SupplierDetail />} />
 
