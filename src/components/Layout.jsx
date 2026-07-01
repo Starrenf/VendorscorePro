@@ -124,6 +124,7 @@ export default function Layout({ children }) {
         items: [
           ...(isAdmin
             ? [
+                item("/suppliers/masterdata", "Leveranciers MDM", Wrench),
                 item("/settings/communications", "Communicatie", Megaphone),
                 item("/settings/roles", "Rollenbeheer", UserCog),
                 item("/settings", "Waardelijsten", SlidersHorizontal),
@@ -239,20 +240,11 @@ export default function Layout({ children }) {
                 <div className="truncate text-xs text-slate-500">{orgLabel}</div>
               </div>
             </div>
-            {session ? (
-              <button className="gx-top-icon" onClick={signOut} title="Uitloggen"><LogOut className="h-5 w-5" /></button>
-            ) : (
-              <Link className="gx-login-link no-underline" to="/login"><UserRound className="h-4 w-4" /> Login</Link>
-            )}
+            <button type="button" className="gx-top-icon" onClick={signOut} title="Uitloggen"><LogOut className="h-5 w-5" /></button>
           </div>
         </header>
 
-        <main className="gx-content">{children}</main>
-
-        <footer className="gx-footer">
-          <span>© {new Date().getFullYear()} Governix</span>
-          <span>Integrated Governance, Contract & Asset Management Platform</span>
-        </footer>
+        <main className="gx-main">{children}</main>
       </div>
     </div>
   );

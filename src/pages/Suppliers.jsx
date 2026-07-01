@@ -58,8 +58,7 @@ export default function Suppliers() {
       setLoading(true);
 
       // Gebruik de database-view als leidende bron voor het leveranciersoverzicht.
-      // Deze view berekent governance dynamisch uit governance_checklist_items,
-      // zodat het overzicht gelijk loopt met de detailpagina.
+      // De view toont alleen actieve, niet-samengevoegde leveranciers.
       const { data, error } = await client
         .from("supplier_overview_view")
         .select("*")
@@ -86,23 +85,27 @@ export default function Suppliers() {
         return;
       }
 
-      // De view bevat niet altijd alle verrijkingsvelden. Haal deze aanvullend uit suppliers
-      // zodat filters op discipline/type/dataverrijking betrouwbaar werken zonder de view te breken.
+      // De view bevat niet altijd alle verrijkingsvelden. Haal deze aanvullend uit suppliers.
+      // display_name is leidend voor de zichtbare naam; name blijft de technische/bronnaam.
       let extraById = {};
       const ids = list.map((x) => x.id).filter(Boolean);
       if (ids.length) {
         const { data: extra } = await client
           .from("suppliers")
-          .select("id,supplier_type,domain,category,enrichment_status,legal_name,city,website")
+          .select("id,display_name,legal_name,supplier_type,domain,category,enrichment_status,city,website")
           .in("id", ids);
         (extra || []).forEach((x) => { extraById[x.id] = x; });
       }
 
       const cleaned = list.map((row) => {
         const extra = extraById[row.id] || {};
+        const sourceName = row.name;
+        const visibleName = extra.display_name || row.display_name || row.name;
         return {
           ...row,
           ...extra,
+          name: visibleName,
+          source_name: sourceName,
           classification: row.classification || row.strategic_type || extra.supplier_type || row.supplier_type || "Onbekend",
           domain: extra.domain || row.domain || row.category || "Generiek",
           category: extra.category || row.category || "Niet ingevuld",
@@ -149,7 +152,7 @@ export default function Suppliers() {
   const filtered = useMemo(() => {
     const search = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (search && ![r.name, r.legal_name, r.domain, r.category, r.supplier_type, r.city].join(" ").toLowerCase().includes(search)) return false;
+      if (search && ![r.name, r.source_name, r.legal_name, r.domain, r.category, r.supplier_type, r.city].join(" ").toLowerCase().includes(search)) return false;
 
       if (urlFilters.governance === "green" && governanceToLight(r.governancePercent) !== "green") return false;
       if (urlFilters.governance === "amber" && governanceToLight(r.governancePercent) !== "amber") return false;
@@ -186,7 +189,7 @@ export default function Suppliers() {
     if (!n || usingDemo || !orgId || !client) return;
 
     const exists = rows.some(
-      (r) => (r.name || "").trim().toLowerCase() === n.toLowerCase(),
+      (r) => [r.name, r.source_name, r.legal_name].join(" ").toLowerCase().split(" ").includes(n.toLowerCase()) || (r.name || "").trim().toLowerCase() === n.toLowerCase(),
     );
     if (exists) {
       setErr("Deze leverancier bestaat al binnen deze organisatie.");
@@ -201,13 +204,14 @@ export default function Suppliers() {
           .insert({
             organization_id: orgId,
             name: n,
+            display_name: n,
             is_active: true,
             category: "Generiek",
             domain: "ICT",
             status: "active",
           })
           .select(
-            "id,name,is_active,created_at,classification,supplier_type,category,domain,status",
+            "id,name,display_name,is_active,created_at,classification,supplier_type,category,domain,status",
           )
           .single(),
         toast,
@@ -271,9 +275,14 @@ export default function Suppliers() {
             </p>
           </div>
           {!usingDemo ? (
-            <Link className="btn btn-primary" to="/evaluations/new">
-              Nieuwe beoordeling
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link className="btn" to="/suppliers/masterdata">
+                Masterdata beheren
+              </Link>
+              <Link className="btn btn-primary" to="/evaluations/new">
+                Nieuwe beoordeling
+              </Link>
+            </div>
           ) : null}
         </div>
 
@@ -387,6 +396,9 @@ export default function Suppliers() {
                     <TrafficLight value={light} />
                     <div className="font-semibold truncate">{s.name}</div>
                   </div>
+                  {s.legal_name && s.legal_name !== s.name ? (
+                    <div className="mt-1 text-xs text-slate-500">Juridisch: {s.legal_name}</div>
+                  ) : null}
                   <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-600">
                     <span className="badge">
                       {s.classification || "Onbekend"}
