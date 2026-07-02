@@ -70,6 +70,7 @@ export default function Layout({ children }) {
   const nav = useNavigate();
   const { session, organization, signOut, loading, profile } = useApp();
   const isAdmin = Boolean(profile?.role === "admin");
+  const isContractManager = Boolean(profile?.is_contract_manager || profile?.contract_workspace_enabled);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [presentationMode, setPresentationMode] = useState(() => {
@@ -103,6 +104,7 @@ export default function Layout({ children }) {
         label: "Werkgebieden",
         items: [
           item("/suppliers", "Leveranciers", Users),
+          item("/contracts/workspace", "Mijn contracten", FileText),
           item("/landschap", "Applicaties", Layers3),
           item("/assets", "Gebouwen & Assets", Building),
           item("/methodiek", "Governance", ShieldCheck),
@@ -135,7 +137,7 @@ export default function Layout({ children }) {
         ],
       },
     ].filter((group) => group.items.length > 0);
-  }, [pathname, isAdmin]);
+  }, [pathname, isAdmin, isContractManager]);
 
   useEffect(() => {
     if (loading) return;
@@ -191,7 +193,7 @@ export default function Layout({ children }) {
               <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/55">Snel acties</div>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">+</span>
             </div>
-            <Link to="/settings/communications" className="gx-quick-link no-underline"><Megaphone className="h-4 w-4" /> Nieuwe melding</Link>
+            <Link to="/contracts/new" className="gx-quick-link no-underline"><FileText className="h-4 w-4" /> Nieuw contract</Link>
             <Link to="/suppliers" className="gx-quick-link no-underline"><Building2 className="h-4 w-4" /> Leverancier</Link>
             <Link to="/assets" className="gx-quick-link no-underline"><Box className="h-4 w-4" /> Asset bekijken</Link>
           </div>
@@ -203,7 +205,7 @@ export default function Layout({ children }) {
               <div className="gx-avatar">{initials}</div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-extrabold text-white">{displayName}</div>
-                <div className="truncate text-xs text-white/60">{profile?.role === "admin" ? "Beheerder" : "Gebruiker"}</div>
+                <div className="truncate text-xs text-white/60">{profile?.role === "admin" ? "Beheerder" : isContractManager ? "Contractmanager" : "Gebruiker"}</div>
               </div>
               <ChevronDown className="ml-auto h-4 w-4 text-white/50" />
             </div>
@@ -240,7 +242,7 @@ export default function Layout({ children }) {
               </div>
             </div>
             {session ? (
-              <button className="gx-top-icon" onClick={signOut} title="Uitloggen"><LogOut className="h-5 w-5" /></button>
+              <button type="button" className="gx-top-icon" onClick={signOut} title="Uitloggen"><LogOut className="h-5 w-5" /></button>
             ) : (
               <Link className="gx-login-link no-underline" to="/login"><UserRound className="h-4 w-4" /> Login</Link>
             )}
