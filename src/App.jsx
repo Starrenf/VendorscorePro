@@ -28,6 +28,8 @@ import SoftwareLandscape from "./pages/SoftwareLandscape";
 import AIRegister from "./pages/AIRegister";
 import Wiki from "./pages/Wiki";
 import WikiAdmin from "./pages/WikiAdmin";
+import ContractWorkspace from "./pages/ContractWorkspace";
+import ContractRegistrationWizard from "./pages/ContractRegistrationWizard";
 import ArchitectureCockpit from "./pages/architecture/ArchitectureCockpit";
 import MoraAbout from "./pages/architecture/MoraAbout";
 import ArchitectureDomains from "./pages/architecture/ArchitectureDomains";
@@ -70,6 +72,8 @@ export default function App() {
           <Route path="/suppliers" element={<Suppliers />} />
           <Route path="/assets" element={<AssetFoundation />} />
           <Route path="/suppliers/:id" element={<SupplierDetail />} />
+          <Route path="/contracts/workspace" element={<ContractWorkspace />} />
+          <Route path="/contracts/new" element={<ContractRegistrationWizard />} />
 
           <Route path="/methodiek" element={<Methodiek />} />
 
