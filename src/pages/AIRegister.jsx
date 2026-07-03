@@ -108,6 +108,15 @@ function AiSummaryCard({ label, value, hint }) {
   );
 }
 
+function CheckboxQuestion({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-3">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="text-sm font-medium">{label}</span>
+    </label>
+  );
+}
+
 export default function AIRegister() {
   const { session, organization, profile, loading: appLoading } = useApp();
   const client = supabase();
@@ -167,8 +176,8 @@ export default function AIRegister() {
       subprocessor_id: row.subprocessor_id || "",
       last_review_date: row.last_review_date || "",
       next_review_date: row.next_review_date || "",
+      eu_data_storage: row.eu_data_storage === null || row.eu_data_storage === undefined ? "unknown" : !!row.eu_data_storage,
     });
-    // Bewust geen scroll-reset: gebruiker blijft in context.
   }
 
   function setField(key, value) { setForm((prev) => ({ ...prev, [key]: value })); }
@@ -237,11 +246,18 @@ export default function AIRegister() {
     createdByName: displayUser(row.created_by),
     warnings: buildAiWarnings(row),
   })), [rows, suppliers, applications, profiles, profile, session]);
+
   const filtered = enriched.filter((row) => {
-    const hay = `${row.name} ${row.description || ""} ${row.supplierName} ${row.applicationName} ${row.ai_model_vendor || ""} ${row.ai_model_name || ""}`.toLowerCase();
+    const hay = `${row.name} ${row.description || ""} ${row.ai_use_case || ""} ${row.ai_purpose || ""} ${row.supplierName} ${row.applicationName} ${row.ai_model_vendor || ""} ${row.ai_model_name || ""}`.toLowerCase();
     return (!q || hay.includes(q.toLowerCase())) && (riskFilter === "all" || row.ai_risk_classification === riskFilter);
   });
-  const stats = useMemo(() => ({ total: rows.length, high: rows.filter((r) => r.ai_risk_classification === "high" || r.ai_risk_classification === "unacceptable").length, dpia: rows.filter((r) => r.dpia_required && !r.dpia_completed).length, warnings: enriched.reduce((n, r) => n + r.warnings.length, 0) }), [rows, enriched]);
+
+  const stats = useMemo(() => ({
+    total: rows.length,
+    high: rows.filter((r) => r.ai_risk_classification === "high" || r.ai_risk_classification === "unacceptable").length,
+    dpia: rows.filter((r) => r.dpia_required && !r.dpia_completed).length,
+    warnings: enriched.reduce((n, r) => n + r.warnings.length, 0),
+  }), [rows, enriched]);
 
   return (
     <div className="space-y-4">
@@ -255,34 +271,84 @@ export default function AIRegister() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4"><AiSummaryCard label="AI-items" value={stats.total} hint="Geregistreerd" /><AiSummaryCard label="Hoog/onaanvaardbaar" value={stats.high} hint="Prioriteit" /><AiSummaryCard label="DPIA open" value={stats.dpia} hint="Nog afronden" /><AiSummaryCard label="Alerts" value={stats.warnings} hint="Governance signalen" /></div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <AiSummaryCard label="AI-items" value={stats.total} hint="Geregistreerd" />
+        <AiSummaryCard label="Hoog/onaanvaardbaar" value={stats.high} hint="Prioriteit" />
+        <AiSummaryCard label="DPIA open" value={stats.dpia} hint="Nog afronden" />
+        <AiSummaryCard label="Alerts" value={stats.warnings} hint="Governance signalen" />
+      </div>
       {err ? <Notice title="Fout" tone="danger">{err}</Notice> : null}
 
-      <div className="card p-4 space-y-4">
-        <div><div className="font-semibold">{selectedId ? "AI-registeritem bewerken" : "Nieuw AI-registeritem"}</div><p className="mt-1 text-sm text-slate-600">Open een bestaand item via Bewerken om het record bij te werken. Governix voorkomt dubbele AI-registraties per leverancier, applicatie en naam.</p></div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1"><span className="text-sm font-medium">Naam *</span><input className="w-full" value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Bijv. Copilot, EduGenAI, AI in toetsing" /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Risicoklasse</span><select className="w-full" value={form.ai_risk_classification} onChange={(e) => setField("ai_risk_classification", e.target.value)}>{AI_RISK_CLASSIFICATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Leverancier</span><select className="w-full" value={form.supplier_id} onChange={(e) => setField("supplier_id", e.target.value)}><option value="">Niet gekoppeld</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Applicatie</span><select className="w-full" value={form.application_id} onChange={(e) => setField("application_id", e.target.value)}><option value="">Niet gekoppeld</option>{applications.filter((a) => !form.supplier_id || a.supplier_id === form.supplier_id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-sm font-medium">AI-provider</span><input className="w-full" value={form.ai_model_vendor || ""} onChange={(e) => setField("ai_model_vendor", e.target.value)} placeholder="Bijv. Microsoft, OpenAI, Google" /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Model / dienst</span><input className="w-full" value={form.ai_model_name || ""} onChange={(e) => setField("ai_model_name", e.target.value)} placeholder="Bijv. GPT-4.1, Azure OpenAI, Gemini" /></label>
-          <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Use case / doel</span><textarea className="w-full min-h-[90px]" value={form.ai_use_case || ""} onChange={(e) => setField("ai_use_case", e.target.value)} placeholder="Waarvoor wordt AI gebruikt, in welk proces en door welke gebruikersgroep?" /></label>
-          <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Risico-onderbouwing</span><textarea className="w-full min-h-[80px]" value={form.risk_reason || ""} onChange={(e) => setField("risk_reason", e.target.value)} placeholder="Waarom deze risicoklasse? Denk aan onderwijsbeoordeling, HR, profiling, AVG of transparantieplicht." /></label>
+      <div className="card p-4 space-y-5">
+        <div>
+          <div className="font-semibold">{selectedId ? "AI-registeritem bewerken" : "Nieuw AI-registeritem"}</div>
+          <p className="mt-1 text-sm text-slate-600">Samengestelde vragen zijn opgesplitst, zodat iedere vraag afzonderlijk beantwoord en beoordeeld kan worden.</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          {[ ["processes_personal_data", "Persoonsgegevens"], ["processes_special_category_data", "Bijzondere gegevens"], ["automated_decision_making", "Automatische besluitvorming"], ["human_oversight", "Menselijk toezicht"], ["trains_on_customer_data", "Training op klantdata"], ["dpia_required", "DPIA vereist"], ["dpia_completed", "DPIA afgerond"], ["dpa_present", "DPA aanwezig"], ["subprocessor_known", "Subverwerkers bekend"], ["security_documentation_present", "Security documentatie"], ].map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 p-3"><input type="checkbox" checked={!!form[key]} onChange={(e) => setField(key, e.target.checked)} /><span className="text-sm font-medium">{label}</span></label>)}
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">1. Basisgegevens</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1"><span className="text-sm font-medium">Naam AI-toepassing *</span><input className="w-full" value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Bijv. Copilot, EduGenAI, AI in toetsing" /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Risicoklasse</span><select className="w-full" value={form.ai_risk_classification} onChange={(e) => setField("ai_risk_classification", e.target.value)}>{AI_RISK_CLASSIFICATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Leverancier</span><select className="w-full" value={form.supplier_id} onChange={(e) => setField("supplier_id", e.target.value)}><option value="">Niet gekoppeld</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Applicatie</span><select className="w-full" value={form.application_id} onChange={(e) => setField("application_id", e.target.value)}><option value="">Niet gekoppeld</option>{applications.filter((a) => !form.supplier_id || a.supplier_id === form.supplier_id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+            <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Beschrijving</span><textarea className="w-full min-h-[70px]" value={form.description || ""} onChange={(e) => setField("description", e.target.value)} placeholder="Korte beschrijving van de AI-toepassing." /></label>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">2. Gebruik en doel</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1"><span className="text-sm font-medium">Use case</span><textarea className="w-full min-h-[90px]" value={form.ai_use_case || ""} onChange={(e) => setField("ai_use_case", e.target.value)} placeholder="In welk proces wordt AI gebruikt en door welke gebruikersgroep?" /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Doel van de AI-inzet</span><textarea className="w-full min-h-[90px]" value={form.ai_purpose || ""} onChange={(e) => setField("ai_purpose", e.target.value)} placeholder="Welk doel moet de AI-toepassing bereiken?" /></label>
+            <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Risico-onderbouwing</span><textarea className="w-full min-h-[80px]" value={form.risk_reason || ""} onChange={(e) => setField("risk_reason", e.target.value)} placeholder="Waarom is deze risicoklasse gekozen?" /></label>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">3. Provider en model</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1"><span className="text-sm font-medium">AI-provider</span><input className="w-full" value={form.ai_model_vendor || ""} onChange={(e) => setField("ai_model_vendor", e.target.value)} placeholder="Bijv. Microsoft, OpenAI, Google" /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Model of dienstnaam</span><input className="w-full" value={form.ai_model_name || ""} onChange={(e) => setField("ai_model_name", e.target.value)} placeholder="Bijv. Azure OpenAI, Gemini, Copilot" /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Modelversie</span><input className="w-full" value={form.ai_model_version || ""} onChange={(e) => setField("ai_model_version", e.target.value)} placeholder="Bijv. GPT-4.1, 2026-05" /></label>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">4. Data, privacy en security</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            <CheckboxQuestion label="Verwerkt persoonsgegevens" checked={!!form.processes_personal_data} onChange={(value) => setField("processes_personal_data", value)} />
+            <CheckboxQuestion label="Verwerkt bijzondere persoonsgegevens" checked={!!form.processes_special_category_data} onChange={(value) => setField("processes_special_category_data", value)} />
+            <CheckboxQuestion label="Automatische besluitvorming" checked={!!form.automated_decision_making} onChange={(value) => setField("automated_decision_making", value)} />
+            <CheckboxQuestion label="Menselijk toezicht ingericht" checked={!!form.human_oversight} onChange={(value) => setField("human_oversight", value)} />
+            <CheckboxQuestion label="Training op klantdata" checked={!!form.trains_on_customer_data} onChange={(value) => setField("trains_on_customer_data", value)} />
+            <CheckboxQuestion label="DPIA vereist" checked={!!form.dpia_required} onChange={(value) => setField("dpia_required", value)} />
+            <CheckboxQuestion label="DPIA afgerond" checked={!!form.dpia_completed} onChange={(value) => setField("dpia_completed", value)} />
+            <CheckboxQuestion label="DPA aanwezig" checked={!!form.dpa_present} onChange={(value) => setField("dpa_present", value)} />
+            <CheckboxQuestion label="Subverwerkers bekend" checked={!!form.subprocessor_known} onChange={(value) => setField("subprocessor_known", value)} />
+            <CheckboxQuestion label="Security documentatie aanwezig" checked={!!form.security_documentation_present} onChange={(value) => setField("security_documentation_present", value)} />
+            <label className="space-y-1"><span className="text-sm font-medium">Datalocatie</span><input className="w-full" value={form.data_location || ""} onChange={(e) => setField("data_location", e.target.value)} placeholder="EU, NL, VS, onbekend" /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">EU-dataopslag</span><select className="w-full" value={String(form.eu_data_storage)} onChange={(e) => setField("eu_data_storage", e.target.value === "unknown" ? "unknown" : e.target.value === "true")}><option value="true">Ja</option><option value="false">Nee</option><option value="unknown">Onbekend</option></select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Bewaartermijn</span><input className="w-full" value={form.retention_period || ""} onChange={(e) => setField("retention_period", e.target.value)} placeholder="Bijv. 30 dagen, contractduur" /></label>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">5. Transparantie en beheer</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1"><span className="text-sm font-medium">Status</span><select className="w-full" value={form.status} onChange={(e) => setField("status", e.target.value)}>{AI_STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Eigenaar</span><input className="w-full" value={form.owner_name || ""} onChange={(e) => setField("owner_name", e.target.value)} /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Afdeling</span><input className="w-full" value={form.owner_department || ""} onChange={(e) => setField("owner_department", e.target.value)} /></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Volgende review</span><input type="date" className="w-full" value={form.next_review_date || ""} onChange={(e) => setField("next_review_date", e.target.value)} /></label>
+            <div className="space-y-1 md:col-span-3"><span className="text-sm font-medium">Transparantiemaatregelen</span><RichTextEditor value={form.transparency_measures || ""} onChange={(value) => setField("transparency_measures", value)} placeholder="Bijv. gebruikers informeren, AI-label, instructie, logging, disclaimer." minHeight={150} /></div>
+            <div className="space-y-1 md:col-span-3"><span className="text-sm font-medium">Interne notities</span><RichTextEditor value={form.notes || ""} onChange={(value) => setField("notes", value)} placeholder="Interne opmerkingen, aandachtspunten of vervolgacties." minHeight={120} /></div>
+          </div>
+        </section>
+
+        <div className="flex gap-2">
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Opslaan…" : "Opslaan AI-item"}</button>
+          {selectedId ? <button className="btn" onClick={() => { setForm(EMPTY_FORM); setSelectedId(null); }}>Annuleren</button> : null}
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="space-y-1"><span className="text-sm font-medium">Datalocatie</span><input className="w-full" value={form.data_location || ""} onChange={(e) => setField("data_location", e.target.value)} placeholder="EU, NL, VS, onbekend" /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Bewaartermijn</span><input className="w-full" value={form.retention_period || ""} onChange={(e) => setField("retention_period", e.target.value)} placeholder="Bijv. 30 dagen, contractduur" /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Status</span><select className="w-full" value={form.status} onChange={(e) => setField("status", e.target.value)}>{AI_STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Eigenaar</span><input className="w-full" value={form.owner_name || ""} onChange={(e) => setField("owner_name", e.target.value)} /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Afdeling</span><input className="w-full" value={form.owner_department || ""} onChange={(e) => setField("owner_department", e.target.value)} /></label>
-          <label className="space-y-1"><span className="text-sm font-medium">Volgende review</span><input type="date" className="w-full" value={form.next_review_date || ""} onChange={(e) => setField("next_review_date", e.target.value)} /></label>
-          <div className="space-y-1 md:col-span-3"><span className="text-sm font-medium">Transparantiemaatregelen / notities</span><RichTextEditor value={form.transparency_measures || ""} onChange={(value) => setField("transparency_measures", value)} placeholder="Bijv. gebruikers informeren, AI-label, instructie, logging, disclaimer." minHeight={160} /></div>
-        </div>
-        <div className="flex gap-2"><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Opslaan…" : "Opslaan AI-item"}</button>{selectedId ? <button className="btn" onClick={() => { setForm(EMPTY_FORM); setSelectedId(null); }}>Annuleren</button> : null}</div>
       </div>
 
       <div className="card p-4"><div className="flex flex-wrap gap-3"><input className="min-w-[260px] flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Zoeken in AI-register…" /><select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}><option value="all">Alle risicoklassen</option>{AI_RISK_CLASSIFICATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div></div>
@@ -292,7 +358,7 @@ export default function AIRegister() {
         {!loading && filtered.length === 0 ? <Notice title="Geen AI-items gevonden">Voeg het eerste AI-registeritem toe of pas je filter aan.</Notice> : null}
         {filtered.map((row) => {
           const rowMitigations = mitigations.filter((m) => m.ai_register_id === row.id);
-          return <div key={row.id} className="card p-4 space-y-3"><div className="flex flex-wrap justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-900">{row.name}</h2><AIRiskBadge value={row.ai_risk_classification} /><span className="badge">{aiStatusLabel(row.status)}</span></div><div className="mt-1 text-sm text-slate-600">{row.supplierName} · {row.applicationName}</div><div className="mt-1 text-xs text-slate-500">Aangemaakt door {row.createdByName}</div></div><div className="flex gap-2"><button className="btn" onClick={() => edit(row)}>Bewerken</button><button className="btn" onClick={() => remove(row)}>Verwijderen</button></div></div>{row.ai_use_case ? <p className="text-sm text-slate-700 whitespace-pre-wrap">{row.ai_use_case}</p> : null}{row.transparency_measures ? <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: row.transparency_measures }} /> : null}<div className="grid gap-2 md:grid-cols-3 text-sm"><div><strong>Provider:</strong> {row.ai_model_vendor || "Niet bekend"}</div><div><strong>Model:</strong> {row.ai_model_name || "Niet bekend"}</div><div><strong>Datalocatie:</strong> {row.data_location || "Niet bekend"}</div></div>{row.warnings.length ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-sm font-semibold text-amber-900">Governance alerts</div><ul className="mt-1 list-disc pl-5 text-sm text-amber-900">{row.warnings.map((w) => <li key={w}>{w}</li>)}</ul></div> : null}<div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-sm font-semibold">Maatregelen ({rowMitigations.length})</div>{rowMitigations.length ? <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{rowMitigations.map((m) => <li key={m.id}><strong>{m.title}</strong> · {m.status} · {m.priority}</li>)}</ul> : <div className="mt-1 text-sm text-slate-600">Nog geen maatregelen vastgelegd.</div>}<div className="mt-3 grid gap-2 md:grid-cols-4"><input className="md:col-span-2" value={mitigationForm.title} onChange={(e) => setMitigationForm((p) => ({ ...p, title: e.target.value }))} placeholder="Nieuwe maatregel" /><select value={mitigationForm.mitigation_type} onChange={(e) => setMitigationForm((p) => ({ ...p, mitigation_type: e.target.value }))}>{MITIGATION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select><button className="btn" onClick={() => addMitigation(row.id)}>Toevoegen</button></div></div></div>;
+          return <div key={row.id} className="card p-4 space-y-3"><div className="flex flex-wrap justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-900">{row.name}</h2><AIRiskBadge value={row.ai_risk_classification} /><span className="badge">{aiStatusLabel(row.status)}</span></div><div className="mt-1 text-sm text-slate-600">{row.supplierName} · {row.applicationName}</div><div className="mt-1 text-xs text-slate-500">Aangemaakt door {row.createdByName}</div></div><div className="flex gap-2"><button className="btn" onClick={() => edit(row)}>Bewerken</button><button className="btn" onClick={() => remove(row)}>Verwijderen</button></div></div>{row.ai_use_case ? <p className="text-sm text-slate-700 whitespace-pre-wrap"><strong>Use case:</strong> {row.ai_use_case}</p> : null}{row.ai_purpose ? <p className="text-sm text-slate-700 whitespace-pre-wrap"><strong>Doel:</strong> {row.ai_purpose}</p> : null}{row.transparency_measures ? <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: row.transparency_measures }} /> : null}<div className="grid gap-2 md:grid-cols-3 text-sm"><div><strong>Provider:</strong> {row.ai_model_vendor || "Niet bekend"}</div><div><strong>Model:</strong> {row.ai_model_name || "Niet bekend"}</div><div><strong>Versie:</strong> {row.ai_model_version || "Niet bekend"}</div><div><strong>Datalocatie:</strong> {row.data_location || "Niet bekend"}</div><div><strong>Bewaartermijn:</strong> {row.retention_period || "Niet bekend"}</div><div><strong>Eigenaar:</strong> {row.owner_name || "Niet bekend"}</div></div>{row.warnings.length ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-sm font-semibold text-amber-900">Governance alerts</div><ul className="mt-1 list-disc pl-5 text-sm text-amber-900">{row.warnings.map((w) => <li key={w}>{w}</li>)}</ul></div> : null}<div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-sm font-semibold">Maatregelen ({rowMitigations.length})</div>{rowMitigations.length ? <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{rowMitigations.map((m) => <li key={m.id}><strong>{m.title}</strong> · {m.status} · {m.priority}</li>)}</ul> : <div className="mt-1 text-sm text-slate-600">Nog geen maatregelen vastgelegd.</div>}<div className="mt-3 grid gap-2 md:grid-cols-4"><input className="md:col-span-2" value={mitigationForm.title} onChange={(e) => setMitigationForm((p) => ({ ...p, title: e.target.value }))} placeholder="Nieuwe maatregel" /><select value={mitigationForm.mitigation_type} onChange={(e) => setMitigationForm((p) => ({ ...p, mitigation_type: e.target.value }))}>{MITIGATION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select><button className="btn" onClick={() => addMitigation(row.id)}>Toevoegen</button></div></div></div>;
         })}
       </div>
 
