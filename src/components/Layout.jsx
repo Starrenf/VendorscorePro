@@ -28,7 +28,6 @@ import {
   FileText,
   Box,
   Wrench,
-  AlertTriangle,
   BarChart3,
   ChevronDown,
   PanelLeftClose,
@@ -68,9 +67,17 @@ export default function Layout({ children }) {
   const location = useLocation();
   const pathname = location.pathname;
   const nav = useNavigate();
-  const { session, organization, signOut, loading, profile } = useApp();
-  const isAdmin = Boolean(profile?.role === "admin");
-  const isContractManager = Boolean(profile?.is_contract_manager || profile?.contract_workspace_enabled);
+  const {
+    session,
+    organization,
+    signOut,
+    loading,
+    profile,
+    userRoles = [],
+    canAccessModule = () => true,
+    isSuperAdmin = false,
+  } = useApp();
+  const isAdmin = Boolean(isSuperAdmin || profile?.role === "admin");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [presentationMode, setPresentationMode] = useState(() => {
@@ -83,6 +90,7 @@ export default function Layout({ children }) {
 
   const orgLabel = organization?.display_name || organization?.name || (profile?.organization_id ? "Gilde Opleidingen" : "Geen organisatie");
   const displayName = profile?.display_name || profile?.full_name || session?.user?.email?.split("@")[0] || "Gebruiker";
+  const primaryRole = isAdmin ? "Beheerder" : userRoles?.[0] || profile?.role || "Gebruiker";
   const initials = displayName
     .split(" ")
     .filter(Boolean)
@@ -91,53 +99,69 @@ export default function Layout({ children }) {
     .join("") || "G";
 
   const menuGroups = useMemo(() => {
-    const item = (to, label, icon) => ({ to, label, icon, active: pathname === to || pathname.startsWith(`${to}/`) });
-    return [
+    const item = (to, label, icon, moduleKey, adminOnly = false) => ({
+      to,
+      label,
+      icon,
+      moduleKey,
+      adminOnly,
+      active: pathname === to || pathname.startsWith(`${to}/`),
+    });
+
+    const groups = [
       {
         label: "Start",
         items: [
-          item("/", "Home", Home),
-          item("/dashboard", "Dashboard", LayoutDashboard),
+          item("/", "Home", Home, "home"),
+          item("/dashboard", "Dashboard", LayoutDashboard, "dashboard"),
+          item("/over", "Over Governix", HelpCircle, "about"),
         ],
       },
       {
         label: "Werkgebieden",
         items: [
-          item("/suppliers", "Leveranciers", Users),
-          item("/contracts/workspace", "Mijn contracten", FileText),
-          item("/landschap", "Applicaties", Layers3),
-          item("/assets", "Gebouwen & Assets", Building),
-          item("/methodiek", "Governance", ShieldCheck),
-          item("/ai-register", "AI Governance", Brain),
+          item("/suppliers", "Leveranciers", Users, "suppliers"),
+          item("/contracts/workspace", "Contract Workspace", FileText, "contracts_workspace"),
+          item("/contracts/new", "Nieuw contract", FileText, "contracts_new"),
+          item("/landschap", "Applicaties", Layers3, "applications"),
+          item("/assets", "Gebouwen & Assets", Building, "assets"),
+          item("/methodiek", "Governance", ShieldCheck, "governance"),
+          item("/ai-register", "AI Governance", Brain, "ai_governance"),
         ],
       },
       {
         label: "Risico & inzicht",
         items: [
-          item("/status", "Statuspagina", ClipboardList),
-          item("/architecture", "Architectuur", BarChart3),
-          item("/kroonjuwelen", "Kroonjuwelen", ShieldCheck),
-          item("/wiki", "Wiki", BookOpen),
-          item("/handleiding", "Handleiding", FileQuestion),
+          item("/status", "Statuspagina", ClipboardList, "status"),
+          item("/architecture", "Architectuur", BarChart3, "architecture"),
+          item("/kroonjuwelen", "Kroonjuwelen", ShieldCheck, "kroonjuwelen"),
+          item("/wiki", "Wiki", BookOpen, "wiki"),
+          item("/handleiding", "Handleiding", FileQuestion, "handleiding"),
         ],
       },
       {
         label: "Beheer",
         items: [
-          ...(isAdmin
-            ? [
-                item("/settings/communications", "Communicatie", Megaphone),
-                item("/settings/roles", "Rollenbeheer", UserCog),
-                item("/settings", "Waardelijsten", SlidersHorizontal),
-                item("/admin/orgs", "Organisaties", SettingsIcon),
-                item("/wiki/admin", "Wiki beheer", BookOpen),
-              ]
-            : []),
-          item("/onboarding", "Onboarding", Building2),
+          item("/settings/communications", "Communicatie", Megaphone, "communications", true),
+          item("/settings/roles", "Rollenbeheer", UserCog, "settings_roles", true),
+          item("/settings", "Waardelijsten", SlidersHorizontal, "settings", true),
+          item("/admin/orgs", "Organisaties", SettingsIcon, "admin_orgs", true),
+          item("/wiki/admin", "Wiki beheer", BookOpen, "wiki_admin", true),
+          item("/onboarding", "Onboarding", Building2, "onboarding"),
         ],
       },
-    ].filter((group) => group.items.length > 0);
-  }, [pathname, isAdmin, isContractManager]);
+    ];
+
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((navItem) => {
+          if (navItem.adminOnly && !isAdmin) return false;
+          return canAccessModule(navItem.moduleKey);
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [pathname, isAdmin, canAccessModule]);
 
   useEffect(() => {
     if (loading) return;
@@ -193,9 +217,10 @@ export default function Layout({ children }) {
               <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/55">Snel acties</div>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">+</span>
             </div>
-            <Link to="/contracts/new" className="gx-quick-link no-underline"><FileText className="h-4 w-4" /> Nieuw contract</Link>
-            <Link to="/suppliers" className="gx-quick-link no-underline"><Building2 className="h-4 w-4" /> Leverancier</Link>
-            <Link to="/assets" className="gx-quick-link no-underline"><Box className="h-4 w-4" /> Asset bekijken</Link>
+            {canAccessModule("contracts_new") ? <Link to="/contracts/new" className="gx-quick-link no-underline"><FileText className="h-4 w-4" /> Nieuw contract</Link> : null}
+            {canAccessModule("suppliers") ? <Link to="/suppliers" className="gx-quick-link no-underline"><Building2 className="h-4 w-4" /> Leverancier</Link> : null}
+            {canAccessModule("assets") ? <Link to="/assets" className="gx-quick-link no-underline"><Box className="h-4 w-4" /> Asset bekijken</Link> : null}
+            {canAccessModule("settings_roles") ? <Link to="/settings/roles" className="gx-quick-link no-underline"><Wrench className="h-4 w-4" /> Rollenbeheer</Link> : null}
           </div>
         ) : null}
 
@@ -205,14 +230,14 @@ export default function Layout({ children }) {
               <div className="gx-avatar">{initials}</div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-extrabold text-white">{displayName}</div>
-                <div className="truncate text-xs text-white/60">{profile?.role === "admin" ? "Beheerder" : isContractManager ? "Contractmanager" : "Gebruiker"}</div>
+                <div className="truncate text-xs text-white/60">{primaryRole}</div>
               </div>
               <ChevronDown className="ml-auto h-4 w-4 text-white/50" />
             </div>
           ) : (
             <div className="gx-avatar mx-auto">{initials}</div>
           )}
-          {!collapsed ? <div className="gx-version">v2.0.0 Enterprise UX</div> : null}
+          {!collapsed ? <div className="gx-version">v4.1 Modular RBAC</div> : null}
         </div>
       </aside>
 
@@ -230,7 +255,7 @@ export default function Layout({ children }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <button className="gx-top-icon" title="Meldingen"><Bell className="h-5 w-5" /><span className="gx-notification-dot">5</span></button>
+            <button className="gx-top-icon" title="Acties"><Bell className="h-5 w-5" /><span className="gx-notification-dot">5</span></button>
             <button className="gx-top-icon hidden sm:inline-flex" title="Berichten"><MessageSquare className="h-5 w-5" /></button>
             <button className="gx-top-icon hidden sm:inline-flex" title="Help"><HelpCircle className="h-5 w-5" /></button>
             <button className={"gx-top-icon hidden sm:inline-flex " + (presentationMode ? "ring-2 ring-blue-400" : "")} title="Presentatiemodus" onClick={() => setPresentationMode((v) => !v)}><MonitorUp className="h-5 w-5" /></button>
