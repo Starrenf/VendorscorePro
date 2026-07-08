@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ShieldCheck, UserCog, AlertTriangle, Sparkles, Lock, Eye, Pencil, Trash2 } from "lucide-react";
+import { ShieldCheck, UserCog, AlertTriangle, Sparkles, Lock, Eye, Pencil, Trash2, Boxes, Settings2 } from "lucide-react";
 import Notice from "../components/Notice";
 import { useApp } from "../state/AppState";
 import { useToast } from "../components/ToastProvider";
 import { supabase } from "../lib/supabase";
 
-const ROLE_TEMPLATES = [
+const FALLBACK_ROLES = [
   {
     name: "Super Admin",
     description: "Volledig beheer van Governix, inclusief instellingen, rollen en gevoelige configuratie.",
@@ -21,11 +21,25 @@ const ROLE_TEMPLATES = [
     modules: ["Gebruikers", "Instellingen", "Kroonjuwelen", "Waardelijsten"],
   },
   {
+    name: "Inkoper",
+    description: "Beheert inkoopintake, integrale toetsing, aanbestedingsvoorbereiding en inkooprapportages.",
+    risk: "middel",
+    badge: "Inkoop",
+    modules: ["Inkoop Intake", "Leveranciers", "Contracten", "Rapportages"],
+  },
+  {
     name: "Contractmanager",
     description: "Beheert leveranciers, contracten, governance, risico's en leveranciersbeoordelingen.",
     risk: "middel",
     badge: "Contract & leveranciers",
     modules: ["Leveranciers", "Contracten", "Governance", "Beoordelingen"],
+  },
+  {
+    name: "Contractmanager Lijn",
+    description: "Beperkte rol voor contractverantwoordelijken in de lijn. Kan eigen contracten registreren, documenten koppelen en jaarlijkse reviews afronden.",
+    risk: "laag",
+    badge: "Lijncontracten",
+    modules: ["Contract Workspace", "Mijn contracten", "Reviews", "Leveranciers lezen"],
   },
   {
     name: "Functioneel Beheerder",
@@ -43,17 +57,24 @@ const ROLE_TEMPLATES = [
   },
   {
     name: "Security Officer",
-    description: "Bekijkt en beoordeelt security, privacy, continuïteit, risico's en AI-governance.",
+    description: "Beoordeelt informatiebeveiliging, continuïteit, risico's en security-documentatie.",
     risk: "middel",
-    badge: "Security & privacy",
-    modules: ["Governance", "Risico", "AI-register", "Subverwerkers"],
+    badge: "Security",
+    modules: ["Governance", "Risico", "AI-register", "Integrale toetsing"],
   },
   {
-    name: "Inkoper",
-    description: "Bekijkt en beheert leveranciers- en contractinformatie vanuit inkoop- en contracteringsperspectief.",
-    risk: "laag",
-    badge: "Inkoop",
-    modules: ["Leveranciers", "Contracten", "Rapportages"],
+    name: "Privacy Officer",
+    description: "Beoordeelt AVG, DPIA, verwerkersovereenkomsten, subverwerkers en privacyrisico's.",
+    risk: "middel",
+    badge: "Privacy",
+    modules: ["Governance", "Integrale toetsing", "Documenten"],
+  },
+  {
+    name: "Architect",
+    description: "Beoordeelt architectuur, koppelingen, SSO, lifecycle en aansluiting op het applicatielandschap.",
+    risk: "middel",
+    badge: "Architectuur",
+    modules: ["Architectuur", "Applicaties", "Integrale toetsing"],
   },
   {
     name: "Viewer",
@@ -64,7 +85,29 @@ const ROLE_TEMPLATES = [
   },
 ];
 
-const ROLE_ORDER = ROLE_TEMPLATES.map((role) => role.name);
+const FALLBACK_MODULES = [
+  { module_key: "home", name: "Home", category: "Start" },
+  { module_key: "dashboard", name: "Dashboard", category: "Start" },
+  { module_key: "suppliers", name: "Leveranciers", category: "Werkgebieden" },
+  { module_key: "contracts_workspace", name: "Contract Workspace", category: "Werkgebieden" },
+  { module_key: "contracts_new", name: "Nieuw contract", category: "Werkgebieden" },
+  { module_key: "applications", name: "Applicaties", category: "Werkgebieden" },
+  { module_key: "assets", name: "Gebouwen & Assets", category: "Werkgebieden" },
+  { module_key: "governance", name: "Governance", category: "Werkgebieden" },
+  { module_key: "ai_governance", name: "AI Governance", category: "Werkgebieden" },
+  { module_key: "status", name: "Statuspagina", category: "Risico & inzicht" },
+  { module_key: "architecture", name: "Architectuur", category: "Risico & inzicht" },
+  { module_key: "kroonjuwelen", name: "Kroonjuwelen", category: "Risico & inzicht" },
+  { module_key: "wiki", name: "Wiki", category: "Risico & inzicht" },
+  { module_key: "handleiding", name: "Handleiding", category: "Risico & inzicht" },
+  { module_key: "settings_roles", name: "Rollenbeheer", category: "Beheer" },
+  { module_key: "settings", name: "Waardelijsten", category: "Beheer" },
+  { module_key: "communications", name: "Communicatie", category: "Beheer" },
+  { module_key: "admin_orgs", name: "Organisaties", category: "Beheer" },
+];
+
+const ROLE_ORDER = FALLBACK_ROLES.map((role) => role.name);
+const QUICK_TEMPLATE_NAMES = ["Viewer", "Contractmanager Lijn", "Inkoper", "Contractmanager", "Functioneel Beheerder", "AI Manager", "Security Officer", "Privacy Officer", "Architect", "Super Admin"];
 
 function roleWeight(role) {
   const idx = ROLE_ORDER.indexOf(role);
@@ -78,28 +121,35 @@ function RiskBadge({ risk }) {
       : risk === "middel"
         ? "border-amber-200 bg-amber-50 text-amber-700"
         : "border-emerald-200 bg-emerald-50 text-emerald-700";
-  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-bold ${cls}`}>{risk}</span>;
+  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-bold ${cls}`}>{risk || "laag"}</span>;
 }
 
 function normalizeRoleName(value) {
   return String(value || "").trim();
 }
 
+function moduleLabel(module) {
+  return module?.name || module?.module_key || "Module";
+}
+
 export default function RoleManagement() {
   const client = supabase();
   const toast = useToast();
-  const { profile, organization } = useApp();
+  const { profile, organization, isSuperAdmin } = useApp();
   const orgId = organization?.id || profile?.organization_id || null;
-  const isAdmin = profile?.role === "admin" || profile?.role === "Super Admin";
+  const isAdmin = Boolean(isSuperAdmin || profile?.role === "admin" || profile?.role === "Super Admin");
 
   const [profiles, setProfiles] = useState([]);
-  const [roles, setRoles] = useState(ROLE_TEMPLATES);
+  const [roles, setRoles] = useState(FALLBACK_ROLES);
   const [assignments, setAssignments] = useState([]);
+  const [modules, setModules] = useState(FALLBACK_MODULES);
+  const [modulePermissions, setModulePermissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedRole, setSelectedRole] = useState("Viewer");
+  const [selectedRoleForModules, setSelectedRoleForModules] = useState("Contractmanager Lijn");
   const [showOnlyWithoutRole, setShowOnlyWithoutRole] = useState(false);
 
   async function loadAll() {
@@ -107,14 +157,16 @@ export default function RoleManagement() {
     setLoading(true);
     setError("");
 
-    const [membershipResult, roleResult, assignmentResult] = await Promise.all([
+    const [membershipResult, roleResult, assignmentResult, moduleResult, permissionResult] = await Promise.all([
       client
         .from("org_memberships")
         .select("id,user_id,organization_id,role,created_at")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: true }),
-      client.from("roles").select("name,description").order("name", { ascending: true }),
+      client.from("roles").select("name,description,risk,badge").order("name", { ascending: true }),
       client.from("user_roles").select("id,profile_id,role_name,created_at").order("created_at", { ascending: true }),
+      client.from("governix_modules").select("module_key,name,description,category,route,is_active,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
+      client.from("role_module_permissions").select("role_name,module_key,can_view,can_create,can_edit,can_delete,can_approve,can_admin"),
     ]);
 
     if (membershipResult.error) {
@@ -128,7 +180,7 @@ export default function RoleManagement() {
       if (userIds.length > 0) {
         const profileLookup = await client
           .from("profiles")
-          .select("id,full_name,role,wiki_role,created_at,updated_at")
+          .select("id,full_name,display_name,role,wiki_role,created_at,updated_at")
           .in("id", userIds);
 
         if (profileLookup.error) {
@@ -144,7 +196,7 @@ export default function RoleManagement() {
         return {
           id: membership.user_id,
           organization_id: membership.organization_id,
-          full_name: p.full_name || null,
+          full_name: p.display_name || p.full_name || null,
           role: p.role || null,
           wiki_role: p.wiki_role || null,
           membership_role: membership.role || null,
@@ -158,20 +210,23 @@ export default function RoleManagement() {
       setProfiles(mergedProfiles.sort((a, b) => String(a.full_name || a.id).localeCompare(String(b.full_name || b.id), "nl")));
     }
 
+    const fallbackByName = new Map(FALLBACK_ROLES.map((role) => [role.name, role]));
     if (!roleResult.error && Array.isArray(roleResult.data) && roleResult.data.length > 0) {
-      const byName = new Map(ROLE_TEMPLATES.map((role) => [role.name, role]));
       const merged = roleResult.data.map((role) => ({
-        ...(byName.get(role.name) || {
+        ...(fallbackByName.get(role.name) || {
           name: role.name,
-          risk: "laag",
-          badge: "Rol",
+          risk: role.risk || "laag",
+          badge: role.badge || "Rol",
           modules: [],
         }),
-        description: role.description || byName.get(role.name)?.description || "Geen omschrijving vastgelegd.",
+        description: role.description || fallbackByName.get(role.name)?.description || "Geen omschrijving vastgelegd.",
+        risk: role.risk || fallbackByName.get(role.name)?.risk || "laag",
+        badge: role.badge || fallbackByName.get(role.name)?.badge || "Rol",
       }));
-      setRoles(merged.sort((a, b) => roleWeight(a.name) - roleWeight(b.name)));
+      setRoles(merged.sort((a, b) => roleWeight(a.name) - roleWeight(b.name) || a.name.localeCompare(b.name, "nl")));
+      if (!merged.some((role) => role.name === selectedRole)) setSelectedRole(merged[0]?.name || "Viewer");
     } else {
-      setRoles(ROLE_TEMPLATES);
+      setRoles(FALLBACK_ROLES);
     }
 
     if (assignmentResult.error) {
@@ -179,6 +234,20 @@ export default function RoleManagement() {
       setAssignments([]);
     } else {
       setAssignments(assignmentResult.data || []);
+    }
+
+    if (!moduleResult.error && Array.isArray(moduleResult.data) && moduleResult.data.length > 0) {
+      setModules(moduleResult.data);
+    } else {
+      setModules(FALLBACK_MODULES);
+      if (moduleResult.error) setError((prev) => prev || `Modules nog niet beschikbaar: ${moduleResult.error.message}`);
+    }
+
+    if (!permissionResult.error) {
+      setModulePermissions(permissionResult.data || []);
+    } else {
+      setModulePermissions([]);
+      setError((prev) => prev || `Modulepermissies nog niet beschikbaar: ${permissionResult.error.message}`);
     }
 
     setLoading(false);
@@ -197,6 +266,16 @@ export default function RoleManagement() {
     }
     return map;
   }, [assignments]);
+
+  const permissionsByRole = useMemo(() => {
+    const map = new Map();
+    for (const permission of modulePermissions) {
+      const key = permission.role_name;
+      if (!map.has(key)) map.set(key, new Map());
+      map.get(key).set(permission.module_key, permission);
+    }
+    return map;
+  }, [modulePermissions]);
 
   const profilesWithRoles = useMemo(() => {
     return profiles.map((item) => {
@@ -226,6 +305,7 @@ export default function RoleManagement() {
 
   const selectedProfile = profiles.find((item) => item.id === selectedProfileId) || null;
   const selectedExistingRoles = new Set((assignmentsByProfile.get(selectedProfileId) || []).map((row) => row.role_name));
+  const selectedModulePermissions = permissionsByRole.get(selectedRoleForModules) || new Map();
 
   async function addRole(profileId = selectedProfileId, roleName = selectedRole) {
     const cleanRole = normalizeRoleName(roleName);
@@ -265,12 +345,17 @@ export default function RoleManagement() {
 
   async function assignTemplate(profileId, templateName) {
     const templateRoles = {
+      "Super Admin": ["Super Admin", "Contractmanager"],
+      "Organisatiebeheerder": ["Organisatiebeheerder"],
+      "Inkoper": ["Inkoper"],
       "Contractmanager": ["Contractmanager"],
+      "Contractmanager Lijn": ["Contractmanager Lijn"],
       "Functioneel Beheerder": ["Functioneel Beheerder"],
       "AI Manager": ["AI Manager"],
       "Security Officer": ["Security Officer"],
+      "Privacy Officer": ["Privacy Officer"],
+      "Architect": ["Architect"],
       "Viewer": ["Viewer"],
-      "Super Admin": ["Super Admin", "Contractmanager"],
     }[templateName] || [templateName];
 
     for (const roleName of templateRoles) {
@@ -288,13 +373,40 @@ export default function RoleManagement() {
     await loadAll();
   }
 
+  async function toggleModule(roleName, moduleKey, checked) {
+    if (!client || !roleName || !moduleKey) return;
+    const existing = permissionsByRole.get(roleName)?.get(moduleKey);
+
+    if (checked) {
+      const result = await client.from("role_module_permissions").upsert(
+        {
+          role_name: roleName,
+          module_key: moduleKey,
+          can_view: true,
+        },
+        { onConflict: "role_name,module_key" },
+      );
+      if (result.error) toast.error(`Module toevoegen mislukt: ${result.error.message}`);
+      else toast.success("Module gekoppeld aan rol.");
+    } else if (existing) {
+      const result = await client
+        .from("role_module_permissions")
+        .delete()
+        .eq("role_name", roleName)
+        .eq("module_key", moduleKey);
+      if (result.error) toast.error(`Module verwijderen mislukt: ${result.error.message}`);
+      else toast.success("Module verwijderd van rol.");
+    }
+
+    await loadAll();
+  }
+
   const stats = useMemo(() => {
     const total = profiles.length;
     const withRole = profilesWithRoles.filter((p) => (p.assignmentRows || []).length > 0).length;
     const superAdmins = assignments.filter((a) => a.role_name === "Super Admin").length;
-    const viewers = assignments.filter((a) => a.role_name === "Viewer").length;
-    return { total, withRole, withoutRole: Math.max(total - withRole, 0), superAdmins, viewers };
-  }, [profiles, profilesWithRoles, assignments]);
+    return { total, withRole, withoutRole: Math.max(total - withRole, 0), superAdmins, roles: roles.length, modules: modules.length };
+  }, [profiles, profilesWithRoles, assignments, roles, modules]);
 
   if (!isAdmin) {
     return (
@@ -302,7 +414,7 @@ export default function RoleManagement() {
         <div className="card p-6">
           <h1 className="text-xl font-semibold">Rollenbeheer</h1>
           <Notice title="Alleen beschikbaar voor admins">
-            Rollenbeheer is alleen zichtbaar voor organisatiebeheerders of Super Admins. Hiermee voorkomen we dat gebruikers zichzelf of anderen extra rechten kunnen geven.
+            Rollenbeheer is alleen zichtbaar voor organisatiebeheerders of Super Admins.
           </Notice>
         </div>
       </div>
@@ -314,10 +426,10 @@ export default function RoleManagement() {
       <div className="card p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="badge mb-3">v0.9.71 RBAC Foundation</div>
+            <div className="badge mb-3">v4.1 Modular RBAC Foundation</div>
             <h1 className="text-2xl font-extrabold tracking-tight">Rollenbeheer</h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">
-              Beheer wie welke rol krijgt binnen Governix. Deze release legt het fundament voor echte rolgebaseerde toegang. Menu-filtering en RLS-koppeling volgen gefaseerd, zodat we veilig kunnen testen zonder bestaande modules te breken.
+              Beheer rollen, gebruikers en moduletoegang centraal. Het menu en toekomstige workflows kijken naar dezelfde modulepermissies.
             </p>
           </div>
           <button className="btn" onClick={loadAll}>Vernieuwen</button>
@@ -325,12 +437,12 @@ export default function RoleManagement() {
       </div>
 
       {error ? (
-        <Notice title="Rollenbeheer nog niet volledig beschikbaar">
-          {error}. Controleer of de SQL-migratie voor <span className="font-mono">roles</span>, <span className="font-mono">user_roles</span> en permissies is uitgevoerd.
+        <Notice title="Rollenbeheer gedeeltelijk beschikbaar">
+          {error}. Draai de migratie <span className="font-mono">v4.1.0_modular_rbac_foundation.sql</span> om rollen, modules en permissies volledig te activeren.
         </Notice>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div className="card p-4">
           <div className="flex items-center gap-2 text-slate-500"><UserCog size={18} /> Gebruikers</div>
           <div className="mt-2 text-3xl font-black">{stats.total}</div>
@@ -344,8 +456,12 @@ export default function RoleManagement() {
           <div className="mt-2 text-3xl font-black">{stats.withoutRole}</div>
         </div>
         <div className="card p-4">
-          <div className="flex items-center gap-2 text-slate-500"><Lock size={18} /> Super Admin</div>
-          <div className="mt-2 text-3xl font-black">{stats.superAdmins}</div>
+          <div className="flex items-center gap-2 text-slate-500"><Boxes size={18} /> Rollen</div>
+          <div className="mt-2 text-3xl font-black">{stats.roles}</div>
+        </div>
+        <div className="card p-4">
+          <div className="flex items-center gap-2 text-slate-500"><Settings2 size={18} /> Modules</div>
+          <div className="mt-2 text-3xl font-black">{stats.modules}</div>
         </div>
       </div>
 
@@ -353,7 +469,7 @@ export default function RoleManagement() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Slim toewijzen</h2>
-            <p className="mt-1 text-sm text-slate-700">Kies een gebruiker en wijs één rol toe. Gebruik roltemplates voor veelgebruikte profielen.</p>
+            <p className="mt-1 text-sm text-slate-700">Kies een gebruiker en wijs één rol toe. De dropdown komt voortaan uit de rollentabel.</p>
           </div>
           <div className="badge"><Sparkles size={14} /> Role templates</div>
         </div>
@@ -372,20 +488,20 @@ export default function RoleManagement() {
         {selectedProfile ? (
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
             <span className="text-slate-600">Templates voor {selectedProfile.full_name || selectedProfile.id.slice(0, 8)}:</span>
-            {["Viewer", "Functioneel Beheerder", "Contractmanager", "AI Manager", "Security Officer", "Super Admin"].map((template) => (
+            {QUICK_TEMPLATE_NAMES.filter((name) => roles.some((role) => role.name === name)).map((template) => (
               <button key={template} className="btn btn-sm" onClick={() => assignTemplate(selectedProfile.id, template)}>{template}</button>
             ))}
           </div>
         ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="card p-5">
           <h2 className="text-lg font-semibold">Rollenbibliotheek</h2>
-          <p className="mt-1 text-sm text-slate-700">Gebruik deze standaardrollen als startpunt. Later koppelen we hier modulepermissies en RLS-policies aan.</p>
+          <p className="mt-1 text-sm text-slate-700">Standaardrollen met moduleprofiel. Modules zijn voortaan configureerbaar.</p>
           <div className="mt-4 space-y-3">
             {roles.map((role) => (
-              <div key={role.name} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <button key={role.name} type="button" onClick={() => setSelectedRoleForModules(role.name)} className={`w-full rounded-2xl border p-3 text-left ${selectedRoleForModules === role.name ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-bold">{role.name}</div>
@@ -396,80 +512,110 @@ export default function RoleManagement() {
                 <div className="mt-2 flex flex-wrap gap-1">
                   {(role.modules || []).slice(0, 4).map((mod) => <span key={mod} className="badge">{mod}</span>)}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
 
-        <div className="card p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Gebruikers en rollen</h2>
-              <p className="mt-1 text-sm text-slate-700">Zoek gebruikers, bekijk bestaande rollen en verwijder rollen waar nodig.</p>
+        <div className="space-y-4">
+          <div className="card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Modules per rol</h2>
+                <p className="mt-1 text-sm text-slate-700">Koppel modules aan de geselecteerde rol. Het zijmenu gebruikt deze rechten direct na opnieuw inloggen/verversen.</p>
+              </div>
+              <select value={selectedRoleForModules} onChange={(e) => setSelectedRoleForModules(e.target.value)} className="max-w-xs">
+                {roles.map((role) => <option key={role.name} value={role.name}>{role.name}</option>)}
+              </select>
             </div>
-            <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm">
-              <input type="checkbox" checked={showOnlyWithoutRole} onChange={(e) => setShowOnlyWithoutRole(e.target.checked)} /> Alleen zonder rol
-            </label>
-          </div>
-          <div className="mt-4">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Zoek op naam, rol of ID" className="w-full" />
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {modules.map((module) => {
+                const permission = selectedModulePermissions.get(module.module_key);
+                const checked = Boolean(permission?.can_view);
+                return (
+                  <label key={module.module_key} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                    <input type="checkbox" checked={checked} onChange={(e) => toggleModule(selectedRoleForModules, module.module_key, e.target.checked)} />
+                    <span>
+                      <span className="font-bold">{moduleLabel(module)}</span>
+                      <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">{module.category || "Module"}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{module.description || module.route || module.module_key}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="mt-4 space-y-3">
-            {loading ? <div className="text-sm text-slate-600">Rollen laden…</div> : null}
-            {!loading && filteredProfiles.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">Geen gebruikers gevonden.</div>
-            ) : null}
-            {filteredProfiles.map((item) => {
-              const rows = item.assignmentRows || [];
-              return (
-                <div key={item.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-extrabold">{item.full_name || "Naam nog niet ingevuld"}</div>
-                      <div className="mt-1 font-mono text-xs text-slate-500">{item.id}</div>
-                      {item.membership_role ? <div className="mt-2 text-xs text-slate-500">Organisatierol: <span className="badge">{item.membership_role}</span></div> : null}
-                      {item.role ? <div className="mt-2 text-xs text-slate-500">Legacy profile role: <span className="badge">{item.role}</span></div> : null}
+          <div className="card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Gebruikers en rollen</h2>
+                <p className="mt-1 text-sm text-slate-700">Zoek gebruikers, bekijk bestaande rollen en verwijder rollen waar nodig.</p>
+              </div>
+              <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                <input type="checkbox" checked={showOnlyWithoutRole} onChange={(e) => setShowOnlyWithoutRole(e.target.checked)} /> Alleen zonder rol
+              </label>
+            </div>
+            <div className="mt-4">
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Zoek op naam, rol of ID" className="w-full" />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {loading ? <div className="text-sm text-slate-600">Rollen laden…</div> : null}
+              {!loading && filteredProfiles.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">Geen gebruikers gevonden.</div>
+              ) : null}
+              {filteredProfiles.map((item) => {
+                const rows = item.assignmentRows || [];
+                return (
+                  <div key={item.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-extrabold">{item.full_name || "Naam nog niet ingevuld"}</div>
+                        <div className="mt-1 font-mono text-xs text-slate-500">{item.id}</div>
+                        {item.membership_role ? <div className="mt-2 text-xs text-slate-500">Organisatierol: <span className="badge">{item.membership_role}</span></div> : null}
+                        {item.role ? <div className="mt-2 text-xs text-slate-500">Legacy profile role: <span className="badge">{item.role}</span></div> : null}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {rows.length === 0 ? <span className="badge border-amber-200 bg-amber-50 text-amber-700">Geen RBAC-rol</span> : null}
+                        {rows.map((row) => (
+                          <span key={row.id} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-900">
+                            {row.role_name}
+                            <button title="Rol verwijderen" onClick={() => removeRole(row)} className="ml-1 rounded-full px-1 hover:bg-blue-100">×</button>
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {rows.length === 0 ? <span className="badge border-amber-200 bg-amber-50 text-amber-700">Geen RBAC-rol</span> : null}
-                      {rows.map((row) => (
-                        <span key={row.id} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-900">
-                          {row.role_name}
-                          <button title="Rol verwijderen" onClick={() => removeRole(row)} className="ml-1 rounded-full px-1 hover:bg-blue-100">×</button>
-                        </span>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {roles.slice(0, 8).map((role) => (
+                        <button key={role.name} className="btn btn-sm" disabled={rows.some((row) => row.role_name === role.name)} onClick={() => addRole(item.id, role.name)}>{role.name}</button>
                       ))}
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {["Viewer", "Functioneel Beheerder", "Contractmanager", "AI Manager"].map((roleName) => (
-                      <button key={roleName} className="btn btn-sm" onClick={() => addRole(item.id, roleName)}>{roleName}</button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="card p-5">
-        <h2 className="text-lg font-semibold">Volgende security-stap</h2>
+        <h2 className="text-lg font-semibold">Security-roadmap</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <Eye className="mb-2 text-slate-500" size={20} />
-            <div className="font-bold">v0.9.72 Menu-filtering</div>
-            <p className="mt-1 text-sm text-slate-600">Menu's en acties tonen op basis van rollen.</p>
+            <div className="font-bold">Module-filtering actief</div>
+            <p className="mt-1 text-sm text-slate-600">Het menu kijkt naar rol-modulepermissies.</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <Pencil className="mb-2 text-slate-500" size={20} />
-            <div className="font-bold">v0.9.73 Actierechten</div>
-            <p className="mt-1 text-sm text-slate-600">Opslaan, wijzigen en verwijderen blokkeren in de frontend.</p>
+            <div className="font-bold">Actierechten</div>
+            <p className="mt-1 text-sm text-slate-600">Volgende stap: knoppen en acties blokkeren op create/edit/approve.</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <Trash2 className="mb-2 text-slate-500" size={20} />
-            <div className="font-bold">v0.9.74 RLS hardening</div>
-            <p className="mt-1 text-sm text-slate-600">Database dwingt rechten af, ook buiten de frontend om.</p>
+            <div className="font-bold">RLS hardening</div>
+            <p className="mt-1 text-sm text-slate-600">Daarna dwingt de database dezelfde rechten af.</p>
           </div>
         </div>
       </div>
