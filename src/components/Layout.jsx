@@ -29,14 +29,18 @@ import {
   Box,
   Wrench,
   BarChart3,
-  ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
 } from "lucide-react";
 
 function GovernixLogo({ compact = false }) {
   return (
-    <Link to="/" className="gx-brand no-underline">
+    <Link
+      to="/dashboard"
+      className="gx-brand no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"
+      aria-label="Governix dashboard"
+    >
       <img src="/governix-icon.svg" alt="" className="gx-brand-icon" />
       {!compact ? (
         <div className="min-w-0">
@@ -54,8 +58,13 @@ function NavItem({ item, collapsed, onClick }) {
     <Link
       to={item.to}
       onClick={onClick}
-      className={"gx-nav-item no-underline " + (item.active ? "gx-nav-item-active" : "")}
+      className={
+        "gx-nav-item no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70 " +
+        (item.active ? "gx-nav-item-active" : "")
+      }
       title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      aria-current={item.active ? "page" : undefined}
     >
       <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
@@ -105,48 +114,58 @@ export default function Layout({ children }) {
       icon,
       moduleKey,
       adminOnly,
-      active: pathname === to || pathname.startsWith(`${to}/`),
+      active: pathname === to || (to !== "/" && pathname.startsWith(`${to}/`)),
     });
 
     const groups = [
       {
         label: "Start",
         items: [
-          item("/", "Home", Home, "home"),
           item("/dashboard", "Dashboard", LayoutDashboard, "dashboard"),
-          item("/over", "Over Governix", HelpCircle, "about"),
+          item("/", "Startpagina", Home, "home"),
         ],
       },
       {
-        label: "Werkgebieden",
+        label: "Beheren",
         items: [
           item("/suppliers", "Leveranciers", Users, "suppliers"),
-          item("/contracts/workspace", "Contract Workspace", FileText, "contracts_workspace"),
-          item("/contracts/new", "Nieuw contract", FileText, "contracts_new"),
+          item("/contracts/workspace", "Contracten", FileText, "contracts_workspace"),
           item("/landschap", "Applicaties", Layers3, "applications"),
-          item("/assets", "Gebouwen & Assets", Building, "assets"),
-          item("/methodiek", "Governance", ShieldCheck, "governance"),
-          item("/ai-register", "AI Governance", Brain, "ai_governance"),
+          item("/assets", "Gebouwen & assets", Building, "assets"),
+          item("/ai-register", "AI-register", Brain, "ai_governance"),
         ],
       },
       {
-        label: "Risico & inzicht",
+        label: "Controleren",
         items: [
-          item("/status", "Statuspagina", ClipboardList, "status"),
-          item("/architecture", "Architectuur", BarChart3, "architecture"),
+          item("/status", "Aandacht & status", ClipboardList, "status"),
+          item("/methodiek", "Governance", ShieldCheck, "governance"),
           item("/kroonjuwelen", "Kroonjuwelen", ShieldCheck, "kroonjuwelen"),
+          item("/architecture", "Architectuur", BarChart3, "architecture"),
+        ],
+      },
+      {
+        label: "Analyseren",
+        items: [
+          item("/insights", "Inzichten & rapportages", Sparkles, "insights"),
+        ],
+      },
+      {
+        label: "Kennis & hulp",
+        items: [
           item("/wiki", "Wiki", BookOpen, "wiki"),
           item("/handleiding", "Handleiding", FileQuestion, "handleiding"),
+          item("/over", "Over Governix", HelpCircle, "about"),
         ],
       },
       {
         label: "Beheer",
         items: [
           item("/settings/communications", "Communicatie", Megaphone, "communications", true),
-          item("/settings/roles", "Rollenbeheer", UserCog, "settings_roles", true),
+          item("/settings/roles", "Rollen & rechten", UserCog, "settings_roles", true),
           item("/settings", "Waardelijsten", SlidersHorizontal, "settings", true),
           item("/admin/orgs", "Organisaties", SettingsIcon, "admin_orgs", true),
-          item("/wiki/admin", "Wiki beheer", BookOpen, "wiki_admin", true),
+          item("/wiki/admin", "Wiki-beheer", BookOpen, "wiki_admin", true),
           item("/onboarding", "Onboarding", Building2, "onboarding"),
         ],
       },
@@ -190,15 +209,34 @@ export default function Layout({ children }) {
 
   const shell = (
     <div className="gx-shell">
-      <aside className={"gx-sidebar " + (collapsed ? "gx-sidebar-collapsed" : "") + (mobileOpen ? " gx-sidebar-mobile-open" : "") }>
+      <a
+        href="#main-content"
+        className="fixed left-4 top-3 z-[100] -translate-y-24 rounded-xl bg-white px-4 py-3 font-bold text-slate-950 shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
+      >
+        Ga naar hoofdinhoud
+      </a>
+
+      <aside
+        id="governix-sidebar"
+        className={"gx-sidebar " + (collapsed ? "gx-sidebar-collapsed" : "") + (mobileOpen ? " gx-sidebar-mobile-open" : "")}
+        aria-label="Hoofdnavigatie"
+      >
         <div className="gx-sidebar-top">
           <GovernixLogo compact={collapsed} />
-          <button className="gx-icon-button hidden lg:inline-flex" onClick={() => setCollapsed((v) => !v)} title={collapsed ? "Menu uitklappen" : "Menu inklappen"}>
-            {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          <button
+            type="button"
+            className="gx-icon-button hidden lg:inline-flex focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"
+            onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? "Menu uitklappen" : "Menu inklappen"}
+            aria-label={collapsed ? "Navigatiemenu uitklappen" : "Navigatiemenu inklappen"}
+            aria-expanded={!collapsed}
+            aria-controls="governix-navigation"
+          >
+            {collapsed ? <PanelLeftOpen className="h-5 w-5" aria-hidden="true" /> : <PanelLeftClose className="h-5 w-5" aria-hidden="true" />}
           </button>
         </div>
 
-        <nav className="gx-nav">
+        <nav id="governix-navigation" className="gx-nav" aria-label="Governix onderdelen">
           {menuGroups.map((group) => (
             <div key={group.label} className="gx-nav-group">
               {!collapsed ? <div className="gx-nav-group-label">{group.label}</div> : null}
@@ -212,69 +250,99 @@ export default function Layout({ children }) {
         </nav>
 
         {!collapsed ? (
-          <div className="gx-quick-actions">
+          <section className="gx-quick-actions" aria-labelledby="quick-actions-heading">
             <div className="flex items-center justify-between">
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/55">Snel acties</div>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70">+</span>
+              <div id="quick-actions-heading" className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/70">Snelle acties</div>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/80" aria-hidden="true">+</span>
             </div>
-            {canAccessModule("contracts_new") ? <Link to="/contracts/new" className="gx-quick-link no-underline"><FileText className="h-4 w-4" /> Nieuw contract</Link> : null}
-            {canAccessModule("suppliers") ? <Link to="/suppliers" className="gx-quick-link no-underline"><Building2 className="h-4 w-4" /> Leverancier</Link> : null}
-            {canAccessModule("assets") ? <Link to="/assets" className="gx-quick-link no-underline"><Box className="h-4 w-4" /> Asset bekijken</Link> : null}
-            {canAccessModule("settings_roles") ? <Link to="/settings/roles" className="gx-quick-link no-underline"><Wrench className="h-4 w-4" /> Rollenbeheer</Link> : null}
-          </div>
+            {canAccessModule("contracts_new") ? <Link to="/contracts/new" className="gx-quick-link no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"><FileText className="h-4 w-4" aria-hidden="true" /> Nieuw contract</Link> : null}
+            {canAccessModule("suppliers") ? <Link to="/suppliers" className="gx-quick-link no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"><Building2 className="h-4 w-4" aria-hidden="true" /> Leverancier beheren</Link> : null}
+            {canAccessModule("assets") ? <Link to="/assets" className="gx-quick-link no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"><Box className="h-4 w-4" aria-hidden="true" /> Asset bekijken</Link> : null}
+            {canAccessModule("settings_roles") ? <Link to="/settings/roles" className="gx-quick-link no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/70"><Wrench className="h-4 w-4" aria-hidden="true" /> Rollen beheren</Link> : null}
+          </section>
         ) : null}
 
         <div className="gx-sidebar-footer">
           {!collapsed ? (
-            <div className="gx-user-mini">
-              <div className="gx-avatar">{initials}</div>
+            <div className="gx-user-mini" aria-label={`${displayName}, ${primaryRole}`}>
+              <div className="gx-avatar" aria-hidden="true">{initials}</div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-extrabold text-white">{displayName}</div>
-                <div className="truncate text-xs text-white/60">{primaryRole}</div>
+                <div className="truncate text-xs text-white/70">{primaryRole}</div>
               </div>
-              <ChevronDown className="ml-auto h-4 w-4 text-white/50" />
             </div>
           ) : (
-            <div className="gx-avatar mx-auto">{initials}</div>
+            <div className="gx-avatar mx-auto" title={`${displayName} — ${primaryRole}`}>{initials}</div>
           )}
           {!collapsed ? <div className="gx-version">v4.1 Modular RBAC</div> : null}
         </div>
       </aside>
 
-      {mobileOpen ? <div className="gx-mobile-backdrop" onClick={() => setMobileOpen(false)} /> : null}
+      {mobileOpen ? (
+        <button
+          type="button"
+          className="gx-mobile-backdrop"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Navigatiemenu sluiten"
+        />
+      ) : null}
 
       <div className="gx-main-wrap">
-        <header className="gx-topbar">
-          <button className="gx-icon-button lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu openen">
-            <PanelLeftOpen className="h-5 w-5" />
+        <header className="gx-topbar" aria-label="Applicatiebalk">
+          <button
+            type="button"
+            className="gx-icon-button lg:hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Navigatiemenu openen"
+            aria-expanded={mobileOpen}
+            aria-controls="governix-sidebar"
+          >
+            <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
           </button>
 
-          <div className="gx-search">
-            <Search className="h-5 w-5 text-slate-400" />
-            <input aria-label="Zoeken" placeholder="Zoek in Governix..." />
+          <div className="gx-search" role="search">
+            <Search className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            <input aria-label="Zoeken in Governix" placeholder="Zoek in Governix..." />
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <button className="gx-top-icon" title="Acties"><Bell className="h-5 w-5" /><span className="gx-notification-dot">5</span></button>
-            <button className="gx-top-icon hidden sm:inline-flex" title="Berichten"><MessageSquare className="h-5 w-5" /></button>
-            <button className="gx-top-icon hidden sm:inline-flex" title="Help"><HelpCircle className="h-5 w-5" /></button>
-            <button className={"gx-top-icon hidden sm:inline-flex " + (presentationMode ? "ring-2 ring-blue-400" : "")} title="Presentatiemodus" onClick={() => setPresentationMode((v) => !v)}><MonitorUp className="h-5 w-5" /></button>
-            <div className="hidden min-w-0 items-center gap-3 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm md:flex">
-              <div className="gx-avatar gx-avatar-light">{initials}</div>
+            <button type="button" className="gx-top-icon focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300" aria-label="Meldingen, 5 ongelezen">
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              <span className="gx-notification-dot" aria-hidden="true">5</span>
+            </button>
+            <button type="button" className="gx-top-icon hidden sm:inline-flex focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300" aria-label="Berichten">
+              <MessageSquare className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <Link to="/handleiding" className="gx-top-icon hidden sm:inline-flex no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300" aria-label="Help en handleiding">
+              <HelpCircle className="h-5 w-5" aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              className={"gx-top-icon hidden sm:inline-flex focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 " + (presentationMode ? "ring-2 ring-blue-500" : "")}
+              aria-label={presentationMode ? "Presentatiemodus uitschakelen" : "Presentatiemodus inschakelen"}
+              aria-pressed={presentationMode}
+              onClick={() => setPresentationMode((v) => !v)}
+            >
+              <MonitorUp className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <div className="hidden min-w-0 items-center gap-3 rounded-full border border-slate-300 bg-white px-2.5 py-1.5 shadow-sm md:flex" aria-label={`Ingelogd als ${displayName} bij ${orgLabel}`}>
+              <div className="gx-avatar gx-avatar-light" aria-hidden="true">{initials}</div>
               <div className="min-w-0 pr-2">
                 <div className="truncate text-sm font-bold text-slate-900">{displayName}</div>
-                <div className="truncate text-xs text-slate-500">{orgLabel}</div>
+                <div className="truncate text-xs text-slate-600">{orgLabel}</div>
               </div>
             </div>
             {session ? (
-              <button type="button" className="gx-top-icon" onClick={signOut} title="Uitloggen"><LogOut className="h-5 w-5" /></button>
+              <button type="button" className="gx-top-icon focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300" onClick={signOut} aria-label="Uitloggen">
+                <LogOut className="h-5 w-5" aria-hidden="true" />
+              </button>
             ) : (
-              <Link className="gx-login-link no-underline" to="/login"><UserRound className="h-4 w-4" /> Login</Link>
+              <Link className="gx-login-link no-underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300" to="/login"><UserRound className="h-4 w-4" aria-hidden="true" /> Login</Link>
             )}
           </div>
         </header>
 
-        <main className="gx-content">{children}</main>
+        <main id="main-content" className="gx-content" tabIndex="-1">{children}</main>
 
         <footer className="gx-footer">
           <span>© {new Date().getFullYear()} Governix</span>
