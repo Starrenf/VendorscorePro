@@ -1,0 +1,262 @@
+/* Governix accessibility layer
+   Goal: calm, predictable, macOS-inspired interaction without copying macOS UI.
+   This file intentionally loads after index.css and only refines shared shell patterns. */
+
+:root {
+  --gx-focus: #0a84ff;
+  --gx-surface: rgba(255, 255, 255, 0.92);
+  --gx-surface-solid: #ffffff;
+  --gx-border: #cbd5e1;
+  --gx-text: #0f172a;
+  --gx-muted: #475569;
+  --gx-sidebar: #0b1f3a;
+  --gx-sidebar-hover: rgba(255, 255, 255, 0.10);
+  --gx-sidebar-active: rgba(255, 255, 255, 0.16);
+  --gx-radius: 14px;
+  --gx-control-height: 44px;
+}
+
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  color: var(--gx-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* WCAG 2.2: strong, consistent focus indication */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--gx-focus) !important;
+  outline-offset: 3px !important;
+}
+
+/* Controls should feel easy to hit, especially on touch and at zoom. */
+:where(button, .btn, .gx-icon-button, .gx-top-icon, .gx-login-link) {
+  min-height: var(--gx-control-height);
+}
+
+.gx-icon-button,
+.gx-top-icon {
+  min-width: var(--gx-control-height);
+}
+
+input,
+select,
+textarea {
+  min-height: var(--gx-control-height);
+  border-color: var(--gx-border);
+  border-radius: 12px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+/* App shell: calmer layers and less dashboard-template visual noise. */
+.gx-sidebar {
+  background: linear-gradient(180deg, #0b1f3a 0%, #08182e 100%);
+}
+
+.gx-sidebar-top {
+  border-bottom-color: rgba(255,255,255,.10);
+}
+
+.gx-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.22) transparent;
+}
+
+.gx-nav-group {
+  margin-bottom: 1rem;
+}
+
+.gx-nav-group-label {
+  color: rgba(255,255,255,.68) !important;
+  letter-spacing: .08em !important;
+  font-size: .70rem !important;
+}
+
+.gx-nav-item {
+  min-height: 44px;
+  border-radius: 11px;
+  color: rgba(255,255,255,.88) !important;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.gx-nav-item:hover {
+  background: var(--gx-sidebar-hover) !important;
+  color: #fff !important;
+  text-decoration: none;
+}
+
+.gx-nav-item-active,
+.gx-nav-item[aria-current="page"] {
+  background: var(--gx-sidebar-active) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 #5eb3ff;
+}
+
+.gx-quick-actions {
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(255,255,255,.055) !important;
+  border-radius: 14px !important;
+}
+
+.gx-quick-link {
+  min-height: 42px;
+  border-radius: 10px;
+}
+
+.gx-topbar {
+  background: rgba(255,255,255,.86) !important;
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(148,163,184,.35) !important;
+}
+
+.gx-search {
+  min-height: 44px;
+  border-color: #cbd5e1 !important;
+  background: rgba(248,250,252,.94) !important;
+  border-radius: 12px !important;
+}
+
+.gx-search:focus-within {
+  border-color: var(--gx-focus) !important;
+  box-shadow: 0 0 0 3px rgba(10,132,255,.18);
+}
+
+.gx-top-icon {
+  border-radius: 11px !important;
+}
+
+.gx-top-icon:hover {
+  background: #eef2f7 !important;
+}
+
+.gx-content {
+  background: #f5f7fa;
+}
+
+.gx-footer {
+  color: #64748b !important;
+}
+
+/* Cards: quieter hierarchy, clearer separation. */
+.card,
+.section-card {
+  border-color: #d7dee8 !important;
+  border-radius: var(--gx-radius) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.05) !important;
+}
+
+.section-head {
+  background: #fff !important;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Buttons: predictable hierarchy and sufficiently large targets. */
+.btn {
+  min-height: 44px;
+  border-radius: 11px !important;
+  padding-inline: 14px !important;
+}
+
+.btn-primary {
+  background: #0a66c2 !important;
+  border-color: #0a66c2 !important;
+}
+
+.btn-primary:hover {
+  background: #075aa9 !important;
+}
+
+/* Reduce color-only meaning by making badges visually distinct in shape and border too. */
+.badge {
+  min-height: 28px;
+  border-width: 1px !important;
+  font-weight: 650;
+}
+
+/* Tables remain legible at 200% zoom and on narrower windows. */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  color: #334155;
+  font-weight: 700;
+}
+
+td,
+th {
+  vertical-align: top;
+}
+
+/* Prefer visible text labels over hover-only help. */
+[title] {
+  text-decoration-skip-ink: auto;
+}
+
+/* WCAG 2.2 / motion sensitivity */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast preference */
+@media (prefers-contrast: more) {
+  :root {
+    --gx-border: #64748b;
+    --gx-muted: #334155;
+  }
+
+  .gx-nav-item {
+    color: #fff !important;
+  }
+
+  .gx-nav-item-active,
+  .gx-nav-item[aria-current="page"] {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+  }
+}
+
+/* Zoom / smaller desktop widths: preserve logical reading order rather than squeezing controls. */
+@media (max-width: 1100px) {
+  .gx-topbar {
+    gap: .5rem;
+  }
+
+  .gx-search {
+    max-width: min(52vw, 440px);
+  }
+}
+
+@media (max-width: 720px) {
+  .gx-content {
+    padding-inline: 12px !important;
+  }
+
+  .gx-search {
+    max-width: none;
+    flex: 1;
+  }
+
+  .page-title {
+    font-size: 1.55rem !important;
+    line-height: 1.25 !important;
+  }
+}
